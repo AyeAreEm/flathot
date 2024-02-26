@@ -10,19 +10,29 @@ Game :: struct {
     target_fps: i32,
     
     time_rate: f32,
-    player: Player,
-    sample: rl.Rectangle,
-    enemies: [dynamic]Enemy,
-    bullets: [dynamic]Bullet,
-    quad_arr: [9][dynamic]QuadNode,
+    objects: Objects,
 
     update: proc(self: ^Game),
     draw: proc(self: ^Game),
 }
 
+Quadrant :: enum {
+    None,
+    Q1,
+    Q2,
+    Q3,
+    Q4,
+    Q5,
+    Q6,
+    Q7,
+    Q8,
+    Q9,
+}
+
 Player :: struct {
     shape: rl.Rectangle,
     color: rl.Color,
+    quadrant: Quadrant,
 
     movement: proc(self: ^Player, time_rate: ^f32),
     shoot: proc(self: ^Player, arr: ^[dynamic]Bullet),
@@ -32,6 +42,9 @@ Enemy :: struct {
     shape: rl.Rectangle,
     color: rl.Color,
     direction: rl.Vector2,
+    quadrant: Quadrant,
+
+    pathfind: proc(self: ^Enemy, target: Player, time_rate: f32)
 }
 
 Bullet :: struct {
@@ -39,55 +52,77 @@ Bullet :: struct {
     color: rl.Color,
     direction: rl.Vector2,
     is_enemy: bool,
+    quadrant: Quadrant,
 
-    update: proc(self: ^Bullet, time_rate: f32),
+    update: proc(self: ^Bullet, arr: ^[dynamic]Bullet, index: int, time_rate: f32),
 }
 
-QuadNodeType :: enum {
-    Player,
-    Enemy,
-    Bullet,
+Objects :: struct {
+    player: ^Player,
+    enemies: ^[dynamic]Enemy,
+    bullets: ^[dynamic]Bullet,
+
+    collision_detect: proc(self: ^Objects),
 }
 
-QuadNode :: struct {
-    type: QuadNodeType,
-    pos: rl.Vector2,
-    quadrant: u8,
-    index: i32,
+make_quadrant :: proc(x, y: f32) -> Quadrant {
+    quadrant: u8
+
+    if x < 400 {
+        quadrant += 1
+    } else if x >= 400 && x < 800 {
+        quadrant += 2
+    } else if x >= 800 && x < 1200 {
+        quadrant += 3
+    }
+
+    if y < 280 {
+        quadrant += 0
+    } else if y >= 280 && y < 560 {
+        quadrant += 3
+    } else  if y >= 560 && y < 840 {
+        quadrant += 6
+    }
+
+    return (Quadrant)(quadrant)
 }
 
-update_quadrant :: proc(self: ^QuadNode, arr: ^[9][dynamic]QuadNode, x, y: f32) {
-    // finish this, test it, fix it
+collision_detect :: proc(self: ^Objects) {
+    for i in 0..<len(self.enemies) {
+        if self.player.quadrant == self.enemies[i].quadrant {
+            if rl.CheckCollisionRecs(self.player.shape, self.enemies[i].shape) {
+                fmt.println("enemy and player collide")
+            }
+        }
 
-    if x == self.pos.x && y == self.pos.y {
-        return
+        for j in 0..<len(self.bullets) {
+            p_b := false
+            e_b := false
+
+            if self.player.quadrant == self.bullets[j].quadrant {
+                p_b = true
+            }
+            if self.enemies[i].quadrant == self.bullets[j].quadrant {
+                e_b = true
+            }
+
+            if p_b == false && e_b == false {
+                continue
+            }
+            if p_b && self.bullets[i].is_enemy {
+                if rl.CheckCollisionRecs(self.player.shape, self.bullets[j].shape) {
+                    fmt.println("player and bullet collide")
+                }
+            }
+            if e_b {
+                if rl.CheckCollisionRecs(self.enemies[i].shape, self.bullets[j].shape) {
+                    ordered_remove(self.enemies, i)
+                    ordered_remove(self.bullets, j)
+                    fmt.println("enemy and bullet collide")
+                }
+            }
+        }
     }
-
-    x_pos: int
-    y_pos: int
-
-    if x <= 400 {
-        x_pos = 0
-    } else if x > 400 && x <= 800 {
-        x_pos = 1
-    } else if x > 800 {
-        x_pos = 2
-    }
-
-    if y <= 280 {
-        y_pos = 0
-    } else if y > 280 && y < 560 {
-        y_pos = 3
-    } else if y > 560 {
-        y_pos = 6
-    }
-
-    cur_quad := x_pos + y_pos
-    self.pos.x = x
-    self.pos.y = y
-
-    append(arr[cur_quad], self^)
-    ordered_remove(arr[self.quadrant], self.index)
 }
 
 shoot :: proc(self: ^Player, arr: ^[dynamic]Bullet) {
@@ -103,40 +138,28 @@ shoot :: proc(self: ^Player, arr: ^[dynamic]Bullet) {
         color = rl.DARKGRAY,
         direction = linalg.vector_normalize(rl.GetMousePosition() - rl.Vector2{spawn_x, spawn_y}),
         is_enemy = false,
+        quadrant = make_quadrant(spawn_x, spawn_y),
+
         update = bullet_update,
     }
 
     append(arr, bullet)
 }
 
-bullet_update :: proc(self: ^Bullet, time_rate: f32) {
+bullet_update :: proc(self: ^Bullet, arr: ^[dynamic]Bullet, index: int, time_rate: f32) {
     self.shape.x += self.direction.x * time_rate
     self.shape.y += self.direction.y * time_rate
+
+    if self.shape.x < 0 || self.shape.x > 1200 || self.shape.y < 0 || self.shape.y > 840 {
+        ordered_remove(arr, index)
+    }
 }
 
-pathfind :: proc(
-    time_rate: f32,
-    mover_x: f32,
-    mover_y: f32,
-    target_x: f32,
-    target_y: f32,
-) -> (f32, f32) {
-    x: f32
-    y: f32
+pathfind :: proc(self: ^Enemy, target: Player, time_rate: f32) {
+    self.shape.x += self.direction.x * time_rate
+    self.shape.y += self.direction.y * time_rate
 
-    if mover_x < target_x {
-        x = mover_x + 1 * time_rate
-    } else if mover_x > target_x {
-        x = mover_x - 1 * time_rate
-    }
-
-    if mover_y < target_y {
-        y = mover_y + 1 * time_rate
-    } else if mover_y > target_y {
-        y = mover_y - 1 * time_rate
-    }
-
-    return x, y
+    self.direction = linalg.vector_normalize(rl.Vector2{target.shape.x, target.shape.y} - rl.Vector2{self.shape.x, self.shape.y})
 }
 
 handle_time_rate :: proc(time_rate: ^f32, has_moved: ^bool) {
@@ -175,48 +198,55 @@ handle_movement :: proc(self: ^Player, time_rate: ^f32) {
 }
 
 game_update :: proc(self: ^Game) {
-    update_quadrant(&self.player.quadrant, self.player.shape.x, self.player.shape.y)
+    self.objects.collision_detect(&self.objects)
 
-    self.player.movement(&self.player, &self.time_rate)
+    player := self.objects.player
+    enemies := self.objects.enemies
+    bullets := self.objects.bullets
+
+    player.movement(player, &self.time_rate)
+    player.quadrant = make_quadrant(player.shape.x, player.shape.y)
 
     if rl.IsMouseButtonPressed(.LEFT) {
-        self.player.shoot(&self.player, &self.bullets)
+        player.shoot(player, bullets)
     }
 
-    self.sample.x, self.sample.y = pathfind(self.time_rate, self.sample.x, self.sample.y, self.player.shape.x, self.player.shape.y)
-    if len(self.bullets) > 0 {
-        for i in 0..<len(self.bullets) {
-            bullet := &self.bullets[i]
-            if rl.CheckCollisionRecs(bullet.shape, self.sample) {
-                fmt.println("bullet hit sample, noice")
-            }
-            bullet.update(bullet, self.time_rate)
-        }
+    for i in 0..<len(enemies^) {
+        enemy := &enemies[i]
+        enemy.pathfind(enemy, player^, self.time_rate)
+        enemy.quadrant = make_quadrant(enemy.shape.x, enemy.shape.y)
     }
 
-    // if rl.CheckCollisionRecs(self.player.shape, self.sample) {
-    //     fmt.println("boxes touched, game over")
-    // }
+    for i in 0..<len(bullets^) {
+        bullet := &bullets[i]
+        bullet.update(bullet, bullets, i, self.time_rate)
+        bullet.quadrant = make_quadrant(bullet.shape.x, bullet.shape.y)
+    }
 }
 
 game_draw :: proc(self: ^Game) {
+    player := self.objects.player
+    enemies := self.objects.enemies
+    bullets := self.objects.bullets
+
     rl.BeginDrawing()
     defer rl.EndDrawing()
 
     rl.ClearBackground(rl.RAYWHITE)
-    rl.DrawRectangleRec(self.player.shape, self.player.color)
-    rl.DrawRectangleRec(self.sample, rl.RED)
+    rl.DrawRectangleRec(player.shape, player.color)
 
-    rl.DrawLineEx({400, 0}, {400, 840}, 5, rl.GRAY)
-    rl.DrawLineEx({800, 0}, {800, 840}, 5, rl.GRAY)
-
-    rl.DrawLineEx({0, 280}, {1200, 280}, 5, rl.GRAY)
-    rl.DrawLineEx({0, 560}, {1200, 560}, 5, rl.GRAY)
+    // rl.DrawLineEx({400, 0}, {400, 840}, 5, rl.GRAY)
+    // rl.DrawLineEx({800, 0}, {800, 840}, 5, rl.GRAY)
+    //
+    // rl.DrawLineEx({0, 280}, {1200, 280}, 5, rl.GRAY)
+    // rl.DrawLineEx({0, 560}, {1200, 560}, 5, rl.GRAY)
     
-    if len(self.bullets) > 0 {
-        for i in 0..<len(self.bullets) {
-            rl.DrawRectangleRec(self.bullets[i].shape, self.bullets[i].color)
-        }
+    for i in 0..<len(enemies^) {
+        rl.DrawRectangleRec(enemies[i].shape, enemies[i].color)
+    }
+
+    for i in 0..<len(bullets^) {
+        rl.DrawRectangleRec(bullets[i].shape, bullets[i].color)
     }
 }
 
@@ -227,8 +257,34 @@ main :: proc() {
             530, 350, 70, 70,
         },
         color = rl.BLACK,
+        quadrant = make_quadrant(530, 350),
+
         movement = handle_movement,
         shoot = shoot,
+    }
+
+    enemies := make([dynamic]Enemy, 0)
+    bullets := make([dynamic]Bullet, 0)
+
+    append(&enemies,
+        Enemy {
+            shape = {
+                1130, 770, 70, 70,
+            },
+            color = rl.RED,
+            direction = linalg.vector_normalize(rl.Vector2{player.shape.x, player.shape.y} - rl.Vector2{1130, 770}),
+            quadrant = make_quadrant(1130, 770),
+
+            pathfind = pathfind,
+        },
+    )
+
+    objects := Objects {
+        player = &player,
+        enemies = &enemies,
+        bullets = &bullets,
+
+        collision_detect = collision_detect,
     }
 
     game := Game {
@@ -237,18 +293,12 @@ main :: proc() {
         target_fps = 120,
 
         time_rate = 1,
-        player = player,
-        sample = {
-            1130, 770, 70, 70,
-        },
-        enemies = make([dynamic]Enemy, 0),
-        bullets = make([dynamic]Bullet, 0),
-        quad_arr = make([9][dynamic]QuadNode),
+        objects = objects,
 
         update = game_update,
         draw = game_draw,
     }
-
+    
     rl.InitWindow(game.width, game.height, "flathot")
     rl.SetTargetFPS(game.target_fps)
     rl.SetConfigFlags({.MSAA_4X_HINT})

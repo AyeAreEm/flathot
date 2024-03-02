@@ -9,6 +9,7 @@ init_lvl1 :: proc() -> Objects {
         shape = {530, 350, 70, 70},
         color = rl.BLACK,
         pace = 1,
+        game_state = .Playing,
 
         movement = handle_movement,
         shoot = shoot,
@@ -22,8 +23,13 @@ init_lvl1 :: proc() -> Objects {
             },
             color = rl.RED,
             direction = linalg.vector_normalize(rl.Vector2{player_lvl1.shape.x, player_lvl1.shape.y} - rl.Vector2{1130, 770}),
+            shoot_cooldown = {
+                rl.GetTime(),
+                5,
+            },
 
             pathfind = pathfind,
+            shoot = shoot,
         },
         Enemy {
             shape = {
@@ -31,8 +37,13 @@ init_lvl1 :: proc() -> Objects {
             },
             color = rl.RED,
             direction = linalg.vector_normalize(rl.Vector2{player_lvl1.shape.x, player_lvl1.shape.y} - rl.Vector2{0, 0}),
+            shoot_cooldown = {
+                rl.GetTime(),
+                5,
+            },
 
             pathfind = pathfind,
+            shoot = shoot,
         },
     )
 

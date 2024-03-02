@@ -8,8 +8,8 @@ Like Superhot, but 2d.
     - Enemy pathfinding
     - Collision detection
     - Scene loader
+    - Enemy Shooting
 
 ## Todo
-    - Enemy Shooting
     - Animations
     - Particles

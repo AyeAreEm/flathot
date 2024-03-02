@@ -5,6 +5,11 @@ import "core:math"
 import "core:math/linalg"
 import rl "vendor:raylib"
 
+GameState :: enum {
+    Playing,
+    Over,
+}
+
 Game :: struct {
     width: i32,
     height: i32,
@@ -18,21 +23,29 @@ Game :: struct {
     collision_detect: proc(self: ^Game),
 }
 
+Timer :: struct {
+    start: f64,
+    lifetime: f64,
+}
+
 Player :: struct {
     shape: rl.Rectangle,
     color: rl.Color,
     pace: f32,
+    game_state: GameState,
 
     movement: proc(self: ^Player, time_rate: ^f32),
-    shoot: proc(self: ^Player, arr: ^[dynamic]Bullet),
+    shoot: proc(self: ^rl.Rectangle, target: rl.Vector2, is_enemy: bool, arr: ^[dynamic]Bullet),
 }
 
 Enemy :: struct {
     shape: rl.Rectangle,
     color: rl.Color,
     direction: rl.Vector2,
+    shoot_cooldown: Timer,
 
-    pathfind: proc(self: ^Enemy, target: Player, time_rate: f32)
+    pathfind: proc(self: ^Enemy, target: Player, time_rate: f32),
+    shoot: proc(self: ^rl.Rectangle, target: rl.Vector2, is_enemy: bool, arr: ^[dynamic]Bullet),
 }
 
 Bullet :: struct {
@@ -58,6 +71,10 @@ Objects :: struct {
     collision_detect: proc(self: ^Objects)
 }
 
+is_timer_done :: proc(timer: Timer, multiplier: f32) -> bool {
+    return rl.GetTime() * cast(f64)multiplier - timer.start >= timer.lifetime;
+}
+
 collision_detect :: proc(self: ^Objects) {
     for i in 0..<len(self.obstacles) {
         if rl.CheckCollisionRecs(self.player.shape, self.obstacles[i].shape) {
@@ -72,19 +89,22 @@ collision_detect :: proc(self: ^Objects) {
 
         for j in 0..<len(self.bullets) {
             if rl.CheckCollisionRecs(self.bullets[j].shape, self.obstacles[i].shape) {
-                fmt.println("wall and bullet collide")
+                fmt.println("wall, bullet delete")
+                ordered_remove(&self.bullets, j)
             }
         }
     }
 
     for i in 0..<len(self.bullets) {
-        if rl.CheckCollisionRecs(self.player.shape, self.bullets[i].shape) {
+        if rl.CheckCollisionRecs(self.player.shape, self.bullets[i].shape) && self.bullets[i].is_enemy {
             fmt.println("bullet and player collide")
+            self.player.game_state = .Over
         }
 
         for j in 0..<len(self.enemies) {
-            if rl.CheckCollisionRecs(self.enemies[j].shape, self.bullets[i].shape) {
-                fmt.println("bullet and enemy collide")
+            if rl.CheckCollisionRecs(self.enemies[j].shape, self.bullets[i].shape) && !self.bullets[i].is_enemy {
+                fmt.println("bullet, enemy delete")
+                ordered_remove(&self.enemies, j)
             }
         }
     }
@@ -96,9 +116,9 @@ collision_detect :: proc(self: ^Objects) {
     }
 }
 
-shoot :: proc(self: ^Player, arr: ^[dynamic]Bullet) {
-    spawn_x := self.shape.x + (self.shape.width / 2) - 5
-    spawn_y := self.shape.y + (self.shape.width / 2) - 5
+shoot :: proc(self: ^rl.Rectangle, target: rl.Vector2, is_enemy: bool, arr: ^[dynamic]Bullet) {
+    spawn_x := self.x + (self.width / 2) - 5
+    spawn_y := self.y + (self.width / 2) - 5
     bullet := Bullet {
         shape = {
             x = spawn_x,
@@ -107,8 +127,8 @@ shoot :: proc(self: ^Player, arr: ^[dynamic]Bullet) {
             height = 10,
         },
         color = rl.DARKGRAY,
-        direction = linalg.vector_normalize(rl.GetMousePosition() - rl.Vector2{spawn_x, spawn_y}),
-        is_enemy = false,
+        direction = linalg.vector_normalize(target - rl.Vector2{spawn_x, spawn_y}),
+        is_enemy = is_enemy,
 
         update = bullet_update,
     }
@@ -117,11 +137,10 @@ shoot :: proc(self: ^Player, arr: ^[dynamic]Bullet) {
 }
 
 bullet_update :: proc(self: ^Bullet, arr: ^[dynamic]Bullet, index: int, time_rate: f32) {
-    self.shape.x += self.direction.x * time_rate
-    self.shape.y += self.direction.y * time_rate
+    self.shape.x += self.direction.x * time_rate * 3
+    self.shape.y += self.direction.y * time_rate * 3
 
     if self.shape.x < 0 || self.shape.x > 1200 || self.shape.y < 0 || self.shape.y > 840 {
-        fmt.println("delete bullet")
         ordered_remove(arr, index)
     }
 }
@@ -176,6 +195,11 @@ handle_movement :: proc(self: ^Player, time_rate: ^f32) {
 
 game_update :: proc(self: ^Game) {
     player := &self.objects.player
+
+    if player.game_state == .Over {
+        return
+    }
+
     enemies := self.objects.enemies
     bullets := &self.objects.bullets
     obstacles := &self.objects.obstacles
@@ -183,12 +207,21 @@ game_update :: proc(self: ^Game) {
     player.movement(player, &self.time_rate)
 
     if rl.IsMouseButtonPressed(.LEFT) {
-        player.shoot(player, bullets)
+        player.shoot(&player.shape, rl.GetMousePosition(), false, bullets)
     }
 
     for i in 0..<len(enemies) {
         enemy := &enemies[i]
         enemy.pathfind(enemy, player^, self.time_rate)
+        if is_timer_done(enemy.shoot_cooldown, self.time_rate) {
+            // bug, in slowmo, first bullet spawns correct but the next ones spawn immediately next frame
+            enemy.shoot(&enemy.shape, rl.Vector2{player.shape.x, player.shape.y}, true, bullets)
+            lifetime := enemy.shoot_cooldown.lifetime
+            enemy.shoot_cooldown = {
+                rl.GetTime(),
+                lifetime,
+            }
+        }
     }
 
     for i in 0..<len(bullets) {
@@ -201,6 +234,16 @@ game_update :: proc(self: ^Game) {
 
 game_draw :: proc(self: ^Game) {
     player := self.objects.player
+
+    if player.game_state == .Over {
+        rl.BeginDrawing()
+        defer rl.EndDrawing()
+
+        rl.ClearBackground(rl.Color{89, 19, 27, 0})
+        rl.DrawText("game over", (self.width / 2 - 40), (self.height / 2 - 40), 20, rl.WHITE)
+        return
+    }
+
     enemies := self.objects.enemies
     bullets := self.objects.bullets
     obstacles := self.objects.obstacles
@@ -210,12 +253,6 @@ game_draw :: proc(self: ^Game) {
 
     rl.ClearBackground(rl.RAYWHITE)
     rl.DrawRectangleRec(player.shape, player.color)
-
-    rl.DrawLineEx({400, 0}, {400, 840}, 5, rl.GRAY)
-    rl.DrawLineEx({800, 0}, {800, 840}, 5, rl.GRAY)
-
-    rl.DrawLineEx({0, 280}, {1200, 280}, 5, rl.GRAY)
-    rl.DrawLineEx({0, 560}, {1200, 560}, 5, rl.GRAY)
     
     for i in 0..<len(enemies) {
         rl.DrawRectangleRec(enemies[i].shape, enemies[i].color)

@@ -5,14 +5,24 @@ import "core:math/linalg"
 import rl "vendor:raylib"
 
 init_lvl1 :: proc() -> Objects {
+    player_frames: i32 = 0
+
+    player_img := rl.LoadImageAnim("resources/character/Outline/120x80_gifs/__Idle.gif", &player_frames)
+    player_texture := rl.LoadTextureFromImage(player_img)
+
     player_lvl1 := Player {
-        shape = {530, 350, 70, 70},
+        anim_info = {
+            player_img, player_texture, cast(int)player_frames, 0, 8, 0,
+        },
+
+        shape = {WIDTH / 2 - 55, HEIGHT / 2 - 60, 35, 60},
         color = rl.BLACK,
         pace = 1,
         game_state = .Playing,
 
         movement = handle_movement,
         shoot = shoot,
+        animate = player_animate,
     }
 
     enemies_lvl1 := make([dynamic]Enemy, 0)

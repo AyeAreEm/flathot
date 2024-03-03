@@ -7,8 +7,12 @@ died_update :: proc(self: ^Game) {
     player := &self.objects.player
 
     if rl.IsMouseButtonPressed(.LEFT) {
+        rl.UnloadTexture(self.objects.player.anim_info.texture)
+        rl.UnloadImage(self.objects.player.anim_info.image)
+
         level := init_lvl1()
         player.game_state = .Playing
+    
         self.objects = level
     } else if rl.IsKeyPressed(.ESCAPE) {
         player.game_state = .Menu

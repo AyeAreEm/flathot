@@ -7,7 +7,9 @@ import rl "vendor:raylib"
 
 WIDTH :: 1200
 HEIGHT :: 840
+TIME_RATE: f32 = 1
 CLOSE_WINDOW := false
+DEBUG_MODE := false
 
 GameState :: enum {
     Menu,
@@ -20,12 +22,10 @@ Game :: struct {
     height: i32,
     target_fps: i32,
     
-    time_rate: f32,
     objects: Objects,
 
     update: proc(self: ^Game),
     draw: proc(self: ^Game),
-    collision_detect: proc(self: ^Game),
 }
 
 Timer :: struct {
@@ -33,14 +33,25 @@ Timer :: struct {
     lifetime: f64,
 }
 
+AnimateInfo :: struct {
+    image: rl.Image,
+    texture: rl.Texture,
+    frames: int,
+    current_frame: int,
+    frame_delay: int,
+    frame_counter: int,
+}
+
 Player :: struct {
+    anim_info: AnimateInfo,
     shape: rl.Rectangle,
     color: rl.Color,
     pace: f32,
     game_state: GameState,
 
-    movement: proc(self: ^Player, time_rate: ^f32),
+    movement: proc(self: ^Player),
     shoot: proc(self: ^rl.Rectangle, target: rl.Vector2, is_enemy: bool, arr: ^[dynamic]Bullet),
+    animate: proc(self: ^AnimateInfo)
 }
 
 Enemy :: struct {
@@ -49,7 +60,7 @@ Enemy :: struct {
     direction: rl.Vector2,
     shoot_cooldown: Timer,
 
-    pathfind: proc(self: ^Enemy, target: Player, time_rate: f32),
+    pathfind: proc(self: ^Enemy, target: Player),
     shoot: proc(self: ^rl.Rectangle, target: rl.Vector2, is_enemy: bool, arr: ^[dynamic]Bullet),
 }
 
@@ -59,7 +70,7 @@ Bullet :: struct {
     direction: rl.Vector2,
     is_enemy: bool,
 
-    update: proc(self: ^Bullet, arr: ^[dynamic]Bullet, index: int, time_rate: f32),
+    update: proc(self: ^Bullet, arr: ^[dynamic]Bullet, index: int),
 }
 
 Obstacle :: struct {
@@ -142,30 +153,53 @@ shoot :: proc(self: ^rl.Rectangle, target: rl.Vector2, is_enemy: bool, arr: ^[dy
     append(arr, bullet)
 }
 
-bullet_update :: proc(self: ^Bullet, arr: ^[dynamic]Bullet, index: int, time_rate: f32) {
-    self.shape.x += self.direction.x * time_rate * 3
-    self.shape.y += self.direction.y * time_rate * 3
+bullet_update :: proc(self: ^Bullet, arr: ^[dynamic]Bullet, index: int) {
+    self.shape.x += self.direction.x * TIME_RATE* 3
+    self.shape.y += self.direction.y * TIME_RATE * 3
 
     if self.shape.x < 0 || self.shape.x > WIDTH || self.shape.y < 0 || self.shape.y > HEIGHT {
         ordered_remove(arr, index)
     }
 }
 
-pathfind :: proc(self: ^Enemy, target: Player, time_rate: f32) {
-    self.shape.x += self.direction.x * time_rate
-    self.shape.y += self.direction.y * time_rate
+pathfind :: proc(self: ^Enemy, target: Player) {
+    self.shape.x += self.direction.x * TIME_RATE
+    self.shape.y += self.direction.y * TIME_RATE
 
     self.direction = linalg.vector_normalize(rl.Vector2{target.shape.x, target.shape.y} - rl.Vector2{self.shape.x, self.shape.y})
 }
 
-handle_time_rate :: proc(time_rate: ^f32, has_moved: ^bool) {
-    if time_rate^ <= 1 {
-        time_rate^ += 0.01
+player_animate :: proc(self: ^AnimateInfo) {
+    if TIME_RATE > 0.5 {
+        if TIME_RATE < 1 {
+            self.frame_delay = 10
+        } else if TIME_RATE >= 1 {
+            self.frame_delay = 6
+        }
+    } else {
+        self.frame_delay = 16
+    }
+
+    self.frame_counter += 1
+    if self.frame_counter >= self.frame_delay {
+        self.current_frame += 1
+
+        if self.current_frame >= self.frames do self.current_frame = 0
+        next_frame_offset := cast(int)self.image.width * cast(int)self.image.height * cast(int)4 * self.current_frame
+
+        rl.UpdateTexture(self.texture, cast(rawptr)(cast(uintptr)(cast(int)cast(uintptr)self.image.data + next_frame_offset)))
+        self.frame_counter = 0
+    }
+}
+
+handle_time_rate :: proc(has_moved: ^bool) {
+    if TIME_RATE <= 1 {
+        TIME_RATE += 0.01
         has_moved^ = true
     }
 }
 
-handle_movement :: proc(self: ^Player, time_rate: ^f32) {
+handle_movement :: proc(self: ^Player) {
     has_moved := false
 
     if rl.IsKeyDown(.LEFT_SHIFT) || rl.IsKeyDown(.RIGHT_SHIFT) {
@@ -175,27 +209,27 @@ handle_movement :: proc(self: ^Player, time_rate: ^f32) {
     }
 
     if rl.IsKeyDown(.W) {
-        self.shape.y -= 1 * self.pace * time_rate^
-        handle_time_rate(time_rate, &has_moved)
+        self.shape.y -= 1 * self.pace * TIME_RATE
+        handle_time_rate(&has_moved)
     }
     if rl.IsKeyDown(.S) {
-        self.shape.y += 1 * self.pace * time_rate^
-        handle_time_rate(time_rate, &has_moved)
+        self.shape.y += 1 * self.pace * TIME_RATE
+        handle_time_rate(&has_moved)
     }
     if rl.IsKeyDown(.A) {
-        self.shape.x -= 1 * self.pace * time_rate^
-        handle_time_rate(time_rate, &has_moved)
+        self.shape.x -= 1 * self.pace * TIME_RATE
+        handle_time_rate(&has_moved)
     }
     if rl.IsKeyDown(.D) {
-        self.shape.x += 1 * self.pace * time_rate^
-        handle_time_rate(time_rate, &has_moved)
+        self.shape.x += 1 * self.pace * TIME_RATE
+        handle_time_rate(&has_moved)
     }
 
-    if !has_moved && time_rate^ >= 0 {
-        time_rate^ -= 0.01
+    if !has_moved && TIME_RATE >= 0 {
+        TIME_RATE -= 0.01
     }
-    if time_rate^ < 0 {
-        time_rate^ = 0.01
+    if TIME_RATE < 0 {
+        TIME_RATE = 0.01
     }
 }
 
@@ -206,16 +240,20 @@ game_update :: proc(self: ^Game) {
     bullets := &self.objects.bullets
     obstacles := &self.objects.obstacles
 
-    player.movement(player, &self.time_rate)
+    player.movement(player)
 
     if rl.IsMouseButtonPressed(.LEFT) {
         player.shoot(&player.shape, rl.GetMousePosition(), false, bullets)
     }
 
+    if rl.IsMouseButtonPressed(.MIDDLE) {
+        DEBUG_MODE = !DEBUG_MODE
+    }
+
     for i in 0..<len(enemies) {
         enemy := &enemies[i]
-        enemy.pathfind(enemy, player^, self.time_rate)
-        if is_timer_done(enemy.shoot_cooldown, self.time_rate) {
+        enemy.pathfind(enemy, player^)
+        if is_timer_done(enemy.shoot_cooldown, TIME_RATE) {
             // bug, in slowmo, first bullet spawns correct but the next ones spawn immediately next frame
             enemy.shoot(&enemy.shape, rl.Vector2{player.shape.x, player.shape.y}, true, bullets)
             lifetime := enemy.shoot_cooldown.lifetime
@@ -228,9 +266,10 @@ game_update :: proc(self: ^Game) {
 
     for i in 0..<len(bullets) {
         bullet := &bullets[i]
-        bullet.update(bullet, bullets, i, self.time_rate)
+        bullet.update(bullet, bullets, i)
     }
 
+    player.animate(&player.anim_info)
     self.objects.collision_detect(&self.objects)
 }
 
@@ -245,7 +284,11 @@ game_draw :: proc(self: ^Game) {
     defer rl.EndDrawing()
 
     rl.ClearBackground(rl.RAYWHITE)
-    rl.DrawRectangleRec(player.shape, player.color)
+    rl.DrawTexturePro(player.anim_info.texture, rl.Rectangle{42, 40, 120, 80}, rl.Rectangle{player.shape.x, player.shape.y, 120*1.5, 80*1.5}, rl.Vector2{0, 0}, 0, rl.WHITE)
+
+    if DEBUG_MODE {
+        rl.DrawRectangleRec(player.shape, rl.Color{10, 10, 10, 60})
+    }
     
     for i in 0..<len(enemies) {
         rl.DrawRectangleRec(enemies[i].shape, enemies[i].color)
@@ -266,7 +309,6 @@ main :: proc() {
         height = HEIGHT,
         target_fps = 120,
 
-        time_rate = 1,
         objects = init_menu(),
 
         update = game_update,

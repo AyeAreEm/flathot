@@ -19,7 +19,7 @@ init_lvl1 :: proc() -> Objects {
     append(&enemies_lvl1,
         Enemy {
             shape = {
-                1130, 770, 70, 70,
+                WIDTH - 70, HEIGHT - 70, 70, 70,
             },
             color = rl.RED,
             direction = linalg.vector_normalize(rl.Vector2{player_lvl1.shape.x, player_lvl1.shape.y} - rl.Vector2{1130, 770}),
@@ -51,27 +51,31 @@ init_lvl1 :: proc() -> Objects {
     append(&obstacles_lvl1,
         Obstacle {
             shape = {
-                0, 0, 1200, 5,
+                0, 0, WIDTH, 5,
             },
             color = rl.DARKGRAY,
+            text = "",
         },
         Obstacle {
             shape = {
-                0, 835, 1200, 5,
+                0, HEIGHT - 5, WIDTH, 5,
             },
             color = rl.DARKGRAY,
+            text = "",
         },
         Obstacle {
             shape = {
-                0, 0, 5, 840,
+                0, 0, 5, HEIGHT,
             },
             color = rl.DARKGRAY,
+            text = "",
         },
         Obstacle {
             shape = {
-                1195, 0, 5, 840,
+                WIDTH - 5, 0, 5, HEIGHT,
             },
             color = rl.DARKGRAY,
+            text = "",
         },
     )
 

@@ -9,6 +9,7 @@ Like Superhot, but 2d.
     - Collision detection
     - Scene loader
     - Enemy Shooting
+    - Game loop (start menu, game, death screen)
 
 ## Todo
     - Animations

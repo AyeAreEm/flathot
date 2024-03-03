@@ -5,7 +5,12 @@ import "core:math"
 import "core:math/linalg"
 import rl "vendor:raylib"
 
+WIDTH :: 1200
+HEIGHT :: 840
+CLOSE_WINDOW := false
+
 GameState :: enum {
+    Menu,
     Playing,
     Over,
 }
@@ -60,6 +65,7 @@ Bullet :: struct {
 Obstacle :: struct {
     shape: rl.Rectangle,
     color: rl.Color,
+    text: cstring,
 }
 
 Objects :: struct {
@@ -140,7 +146,7 @@ bullet_update :: proc(self: ^Bullet, arr: ^[dynamic]Bullet, index: int, time_rat
     self.shape.x += self.direction.x * time_rate * 3
     self.shape.y += self.direction.y * time_rate * 3
 
-    if self.shape.x < 0 || self.shape.x > 1200 || self.shape.y < 0 || self.shape.y > 840 {
+    if self.shape.x < 0 || self.shape.x > WIDTH || self.shape.y < 0 || self.shape.y > HEIGHT {
         ordered_remove(arr, index)
     }
 }
@@ -196,10 +202,6 @@ handle_movement :: proc(self: ^Player, time_rate: ^f32) {
 game_update :: proc(self: ^Game) {
     player := &self.objects.player
 
-    if player.game_state == .Over {
-        return
-    }
-
     enemies := self.objects.enemies
     bullets := &self.objects.bullets
     obstacles := &self.objects.obstacles
@@ -235,15 +237,6 @@ game_update :: proc(self: ^Game) {
 game_draw :: proc(self: ^Game) {
     player := self.objects.player
 
-    if player.game_state == .Over {
-        rl.BeginDrawing()
-        defer rl.EndDrawing()
-
-        rl.ClearBackground(rl.Color{89, 19, 27, 0})
-        rl.DrawText("game over", (self.width / 2 - 40), (self.height / 2 - 40), 20, rl.WHITE)
-        return
-    }
-
     enemies := self.objects.enemies
     bullets := self.objects.bullets
     obstacles := self.objects.obstacles
@@ -269,12 +262,12 @@ game_draw :: proc(self: ^Game) {
 
 main :: proc() {
     game := Game {
-        width = 1200,
-        height = 840,
+        width = WIDTH,
+        height = HEIGHT,
         target_fps = 120,
 
         time_rate = 1,
-        objects = init_lvl1(),
+        objects = init_menu(),
 
         update = game_update,
         draw = game_draw,
@@ -283,10 +276,19 @@ main :: proc() {
     rl.InitWindow(game.width, game.height, "flathot")
     rl.SetTargetFPS(game.target_fps)
     rl.SetConfigFlags({.MSAA_4X_HINT})
+    rl.SetExitKey(.Q)
 
-    for (!rl.WindowShouldClose()) {
-        game.update(&game)
-        game.draw(&game)
+    for (!rl.WindowShouldClose() && !CLOSE_WINDOW) {
+        if game.objects.player.game_state == .Playing {
+            game.update(&game)
+            game.draw(&game)
+        } else if game.objects.player.game_state == .Menu {
+            menu_update(&game)
+            menu_draw(&game)
+        } else {
+            died_update(&game)
+            died_draw(&game)
+        }
     }
 
     rl.CloseWindow()

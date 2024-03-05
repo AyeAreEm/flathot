@@ -7,8 +7,9 @@ died_update :: proc(self: ^Game) {
     player := &self.objects.player
 
     if rl.IsMouseButtonPressed(.LEFT) {
-        rl.UnloadTexture(self.objects.player.anim_info.texture)
-        rl.UnloadImage(self.objects.player.anim_info.image)
+        for i in 0..<len(self.objects.player.animations) {
+            rl.UnloadTexture(self.objects.player.animations[i].texture)
+        }
 
         level := init_lvl1()
         player.game_state = .Playing

@@ -5,15 +5,22 @@ import "core:math/linalg"
 import rl "vendor:raylib"
 
 init_lvl1 :: proc() -> Objects {
-    player_frames: i32 = 0
+    idle_frames: i32 = 0
+    idle_img := rl.LoadImageAnim("resources/character/Outline/120x80_gifs/__Idle.gif", &idle_frames)
+    idle_texture := rl.LoadTextureFromImage(idle_img)
 
-    player_img := rl.LoadImageAnim("resources/character/Outline/120x80_gifs/__Idle.gif", &player_frames)
-    player_texture := rl.LoadTextureFromImage(player_img)
+    run_frames: i32 = 0
+    run_img := rl.LoadImageAnim("resources/character/Outline/120x80_gifs/__Run.gif", &run_frames)
+    run_texture := rl.LoadTextureFromImage(run_img)
+
+    animations := [2]AnimateInfo{
+        AnimateInfo{idle_img, idle_texture, cast(int)idle_frames, 0, 8, 0},
+        AnimateInfo{run_img, run_texture, cast(int)run_frames, 0, 8, 0},
+    }
 
     player_lvl1 := Player {
-        anim_info = {
-            player_img, player_texture, cast(int)player_frames, 0, 8, 0,
-        },
+        animations = animations,
+        active_animation = 0,
 
         shape = {WIDTH / 2 - 55, HEIGHT / 2 - 60, 35, 60},
         color = rl.BLACK,

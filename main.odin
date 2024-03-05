@@ -43,7 +43,8 @@ AnimateInfo :: struct {
 }
 
 Player :: struct {
-    anim_info: AnimateInfo,
+    animations: [2]AnimateInfo,
+    active_animation: int,
     shape: rl.Rectangle,
     color: rl.Color,
     pace: f32,
@@ -172,9 +173,9 @@ pathfind :: proc(self: ^Enemy, target: Player) {
 player_animate :: proc(self: ^AnimateInfo) {
     if TIME_RATE > 0.5 {
         if TIME_RATE < 1 {
-            self.frame_delay = 10
+            self.frame_delay = 12
         } else if TIME_RATE >= 1 {
-            self.frame_delay = 6
+            self.frame_delay = 8
         }
     } else {
         self.frame_delay = 16
@@ -192,11 +193,12 @@ player_animate :: proc(self: ^AnimateInfo) {
     }
 }
 
-handle_time_rate :: proc(has_moved: ^bool) {
+handle_time_rate :: proc() -> bool {
     if TIME_RATE <= 1 {
         TIME_RATE += 0.01
-        has_moved^ = true
     }
+
+    return true
 }
 
 handle_movement :: proc(self: ^Player) {
@@ -208,21 +210,21 @@ handle_movement :: proc(self: ^Player) {
         self.pace = 1
     }
 
-    if rl.IsKeyDown(.W) {
+    if rl.IsKeyDown(.W) || rl.IsKeyPressedRepeat(.W) {
         self.shape.y -= 1 * self.pace * TIME_RATE
-        handle_time_rate(&has_moved)
+        has_moved = handle_time_rate()
     }
-    if rl.IsKeyDown(.S) {
+    if rl.IsKeyDown(.S) || rl.IsKeyPressedRepeat(.S) {
         self.shape.y += 1 * self.pace * TIME_RATE
-        handle_time_rate(&has_moved)
+        has_moved = handle_time_rate()
     }
-    if rl.IsKeyDown(.A) {
+    if rl.IsKeyDown(.A) || rl.IsKeyPressedRepeat(.A) {
         self.shape.x -= 1 * self.pace * TIME_RATE
-        handle_time_rate(&has_moved)
+        has_moved = handle_time_rate()
     }
-    if rl.IsKeyDown(.D) {
+    if rl.IsKeyDown(.D) || rl.IsKeyPressedRepeat(.D) {
         self.shape.x += 1 * self.pace * TIME_RATE
-        handle_time_rate(&has_moved)
+        has_moved = handle_time_rate()
     }
 
     if !has_moved && TIME_RATE >= 0 {
@@ -231,11 +233,18 @@ handle_movement :: proc(self: ^Player) {
     if TIME_RATE < 0 {
         TIME_RATE = 0.01
     }
+
+    if has_moved {
+        self.active_animation = 1
+        self.animate(&self.animations[1])
+    } else {
+        self.active_animation = 0
+        self.animate(&self.animations[0])
+    }
 }
 
 game_update :: proc(self: ^Game) {
     player := &self.objects.player
-
     enemies := self.objects.enemies
     bullets := &self.objects.bullets
     obstacles := &self.objects.obstacles
@@ -269,22 +278,20 @@ game_update :: proc(self: ^Game) {
         bullet.update(bullet, bullets, i)
     }
 
-    player.animate(&player.anim_info)
     self.objects.collision_detect(&self.objects)
 }
 
 game_draw :: proc(self: ^Game) {
     player := self.objects.player
-
     enemies := self.objects.enemies
     bullets := self.objects.bullets
     obstacles := self.objects.obstacles
 
     rl.BeginDrawing()
     defer rl.EndDrawing()
-
     rl.ClearBackground(rl.RAYWHITE)
-    rl.DrawTexturePro(player.anim_info.texture, rl.Rectangle{42, 40, 120, 80}, rl.Rectangle{player.shape.x, player.shape.y, 120*1.5, 80*1.5}, rl.Vector2{0, 0}, 0, rl.WHITE)
+    
+    rl.DrawTexturePro(player.animations[player.active_animation].texture, rl.Rectangle{40, 40, 120, 80}, rl.Rectangle{player.shape.x, player.shape.y, 120*1.5, 80*1.5}, rl.Vector2{0, 0}, 0, rl.WHITE)
 
     if DEBUG_MODE {
         rl.DrawRectangleRec(player.shape, rl.Color{10, 10, 10, 60})

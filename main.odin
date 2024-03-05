@@ -43,8 +43,9 @@ AnimateInfo :: struct {
 }
 
 Player :: struct {
-    animations: [2]AnimateInfo,
+    animations: [4]AnimateInfo,
     active_animation: int,
+    direction: int,
     shape: rl.Rectangle,
     color: rl.Color,
     pace: f32,
@@ -203,6 +204,7 @@ handle_time_rate :: proc() -> bool {
 
 handle_movement :: proc(self: ^Player) {
     has_moved := false
+    direction := self.direction
 
     if rl.IsKeyDown(.LEFT_SHIFT) || rl.IsKeyDown(.RIGHT_SHIFT) {
         self.pace = 1.5
@@ -220,10 +222,12 @@ handle_movement :: proc(self: ^Player) {
     }
     if rl.IsKeyDown(.A) || rl.IsKeyPressedRepeat(.A) {
         self.shape.x -= 1 * self.pace * TIME_RATE
+        direction = 0
         has_moved = handle_time_rate()
     }
     if rl.IsKeyDown(.D) || rl.IsKeyPressedRepeat(.D) {
         self.shape.x += 1 * self.pace * TIME_RATE
+        direction = 1
         has_moved = handle_time_rate()
     }
 
@@ -234,13 +238,26 @@ handle_movement :: proc(self: ^Player) {
         TIME_RATE = 0.01
     }
 
-    if has_moved {
-        self.active_animation = 1
-        self.animate(&self.animations[1])
-    } else {
-        self.active_animation = 0
-        self.animate(&self.animations[0])
+    switch direction {
+        case 0:
+            if has_moved {
+                self.active_animation = 2
+                self.animate(&self.animations[2])
+            } else {
+                self.active_animation = 0
+                self.animate(&self.animations[0])
+            }
+        case 1:
+            if has_moved {
+                self.active_animation = 3
+                self.animate(&self.animations[3])
+            } else {
+                self.active_animation = 1
+                self.animate(&self.animations[1])
+            }
     }
+
+    self.direction = direction
 }
 
 game_update :: proc(self: ^Game) {
@@ -291,7 +308,7 @@ game_draw :: proc(self: ^Game) {
     defer rl.EndDrawing()
     rl.ClearBackground(rl.RAYWHITE)
     
-    rl.DrawTexturePro(player.animations[player.active_animation].texture, rl.Rectangle{40, 40, 120, 80}, rl.Rectangle{player.shape.x, player.shape.y, 120*1.5, 80*1.5}, rl.Vector2{0, 0}, 0, rl.WHITE)
+    rl.DrawTexturePro(player.animations[player.active_animation].texture, rl.Rectangle{44, 42, 65, 79}, rl.Rectangle{player.shape.x, player.shape.y, 65*2, 79*2}, rl.Vector2{0, 0}, 0, rl.WHITE)
 
     if DEBUG_MODE {
         rl.DrawRectangleRec(player.shape, rl.Color{10, 10, 10, 60})

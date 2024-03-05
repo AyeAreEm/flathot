@@ -5,24 +5,35 @@ import "core:math/linalg"
 import rl "vendor:raylib"
 
 init_lvl1 :: proc() -> Objects {
-    idle_frames: i32 = 0
-    idle_img := rl.LoadImageAnim("resources/character/Outline/120x80_gifs/__Idle.gif", &idle_frames)
-    idle_texture := rl.LoadTextureFromImage(idle_img)
+    left_idle_frames: i32 = 0
+    left_idle_img := rl.LoadImageAnim("resources/character/Outline/120x80_gifs/__Idle_l.gif", &left_idle_frames)
+    left_idle_texture := rl.LoadTextureFromImage(left_idle_img)
 
-    run_frames: i32 = 0
-    run_img := rl.LoadImageAnim("resources/character/Outline/120x80_gifs/__Run.gif", &run_frames)
-    run_texture := rl.LoadTextureFromImage(run_img)
+    right_idle_frames: i32 = 0
+    right_idle_img := rl.LoadImageAnim("resources/character/Outline/120x80_gifs/__Idle_r.gif", &right_idle_frames)
+    right_idle_texture := rl.LoadTextureFromImage(right_idle_img)
 
-    animations := [2]AnimateInfo{
-        AnimateInfo{idle_img, idle_texture, cast(int)idle_frames, 0, 8, 0},
-        AnimateInfo{run_img, run_texture, cast(int)run_frames, 0, 8, 0},
+    left_run_frames: i32 = 0
+    left_run_img := rl.LoadImageAnim("resources/character/Outline/120x80_gifs/__Run_l.gif", &left_run_frames)
+    left_run_texture := rl.LoadTextureFromImage(left_run_img)
+
+    right_run_frames: i32 = 0
+    right_run_img := rl.LoadImageAnim("resources/character/Outline/120x80_gifs/__Run_r.gif", &right_run_frames)
+    right_run_texture := rl.LoadTextureFromImage(left_run_img)
+
+    animations := [4]AnimateInfo{
+        AnimateInfo{left_idle_img, left_idle_texture, cast(int)left_idle_frames, 0, 8, 0},
+        AnimateInfo{right_idle_img, right_idle_texture, cast(int)right_idle_frames, 0, 8, 0},
+        AnimateInfo{left_run_img, left_run_texture, cast(int)left_run_frames, 0, 8, 0},
+        AnimateInfo{right_run_img, right_run_texture, cast(int)right_run_frames, 0, 8, 0},
     }
 
     player_lvl1 := Player {
         animations = animations,
         active_animation = 0,
+        direction = 0,
 
-        shape = {WIDTH / 2 - 55, HEIGHT / 2 - 60, 35, 60},
+        shape = {WIDTH / 2 - 55, HEIGHT / 2 - 60, 44, 79},
         color = rl.BLACK,
         pace = 1,
         game_state = .Playing,

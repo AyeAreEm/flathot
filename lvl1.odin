@@ -22,10 +22,10 @@ init_lvl1 :: proc() -> Objects {
     right_run_texture := rl.LoadTextureFromImage(left_run_img)
 
     animations := [4]AnimateInfo{
-        AnimateInfo{left_idle_img, left_idle_texture, cast(int)left_idle_frames, 0, 8, 0},
-        AnimateInfo{right_idle_img, right_idle_texture, cast(int)right_idle_frames, 0, 8, 0},
-        AnimateInfo{left_run_img, left_run_texture, cast(int)left_run_frames, 0, 8, 0},
-        AnimateInfo{right_run_img, right_run_texture, cast(int)right_run_frames, 0, 8, 0},
+        AnimateInfo{left_idle_img, left_idle_texture, cast(int)left_idle_frames, 0, 16, 0},
+        AnimateInfo{right_idle_img, right_idle_texture, cast(int)right_idle_frames, 0, 16, 0},
+        AnimateInfo{left_run_img, left_run_texture, cast(int)left_run_frames, 0, 16, 0},
+        AnimateInfo{right_run_img, right_run_texture, cast(int)right_run_frames, 0, 16, 0},
     }
 
     player_lvl1 := Player {
@@ -40,14 +40,21 @@ init_lvl1 :: proc() -> Objects {
 
         movement = handle_movement,
         shoot = shoot,
-        animate = player_animate,
+        animate = animate,
     }
+
+    enemy_frames: i32 = 0
+    enemy_img := rl.LoadImageAnim("resources/enemy/temp_sprite.gif", &enemy_frames)
+    enemy_texture := rl.LoadTextureFromImage(enemy_img)
 
     enemies_lvl1 := make([dynamic]Enemy, 0)
     append(&enemies_lvl1,
         Enemy {
+            animations = {
+                enemy_img, enemy_texture, cast(int)enemy_frames, 0, 48, 0,
+            },
             shape = {
-                WIDTH - 70, HEIGHT - 70, 70, 70,
+                WIDTH - 70, HEIGHT - 70, 12*4, 16*4,
             },
             color = rl.RED,
             direction = linalg.vector_normalize(rl.Vector2{player_lvl1.shape.x, player_lvl1.shape.y} - rl.Vector2{1130, 770}),
@@ -58,10 +65,14 @@ init_lvl1 :: proc() -> Objects {
 
             pathfind = pathfind,
             shoot = shoot,
+            animate = animate,
         },
         Enemy {
+            animations = {
+                enemy_img, enemy_texture, cast(int)enemy_frames, 0, 48, 0,
+            },
             shape = {
-                0, 0, 70, 70,
+                0, 0, 12*4, 16*4,
             },
             color = rl.RED,
             direction = linalg.vector_normalize(rl.Vector2{player_lvl1.shape.x, player_lvl1.shape.y} - rl.Vector2{0, 0}),
@@ -72,6 +83,7 @@ init_lvl1 :: proc() -> Objects {
 
             pathfind = pathfind,
             shoot = shoot,
+            animate = animate,
         },
     )
 

@@ -53,10 +53,11 @@ Player :: struct {
 
     movement: proc(self: ^Player),
     shoot: proc(self: ^rl.Rectangle, target: rl.Vector2, is_enemy: bool, arr: ^[dynamic]Bullet),
-    animate: proc(self: ^AnimateInfo)
+    animate: proc(self: ^AnimateInfo, condition: int, constant: int)
 }
 
 Enemy :: struct {
+    animations: AnimateInfo,
     shape: rl.Rectangle,
     color: rl.Color,
     direction: rl.Vector2,
@@ -64,6 +65,7 @@ Enemy :: struct {
 
     pathfind: proc(self: ^Enemy, target: Player),
     shoot: proc(self: ^rl.Rectangle, target: rl.Vector2, is_enemy: bool, arr: ^[dynamic]Bullet),
+    animate: proc(self: ^AnimateInfo, condition: int, constant: int)
 }
 
 Bullet :: struct {
@@ -137,7 +139,7 @@ collision_detect :: proc(self: ^Objects) {
 
 shoot :: proc(self: ^rl.Rectangle, target: rl.Vector2, is_enemy: bool, arr: ^[dynamic]Bullet) {
     spawn_x := self.x + (self.width / 2) - 5
-    spawn_y := self.y + (self.width / 2) - 5
+    spawn_y := self.y + (self.height / 2) - 5
     bullet := Bullet {
         shape = {
             x = spawn_x,
@@ -171,19 +173,15 @@ pathfind :: proc(self: ^Enemy, target: Player) {
     self.direction = linalg.vector_normalize(rl.Vector2{target.shape.x, target.shape.y} - rl.Vector2{self.shape.x, self.shape.y})
 }
 
-player_animate :: proc(self: ^AnimateInfo) {
-    if TIME_RATE > 0.5 {
-        if TIME_RATE < 1 {
-            self.frame_delay = 12
-        } else if TIME_RATE >= 1 {
-            self.frame_delay = 8
-        }
-    } else {
-        self.frame_delay = 16
+animate :: proc(self: ^AnimateInfo, condition: int, constant: int) {
+    this_frame_delay := cast(int)(cast(f32)self.frame_delay * (1 - TIME_RATE))
+    if this_frame_delay < condition {
+        this_frame_delay += constant
     }
+    fmt.println(this_frame_delay)
 
     self.frame_counter += 1
-    if self.frame_counter >= self.frame_delay {
+    if self.frame_counter >= this_frame_delay {
         self.current_frame += 1
 
         if self.current_frame >= self.frames do self.current_frame = 0
@@ -242,18 +240,18 @@ handle_movement :: proc(self: ^Player) {
         case 0:
             if has_moved {
                 self.active_animation = 2
-                self.animate(&self.animations[2])
+                self.animate(&self.animations[2], 12, 10)
             } else {
                 self.active_animation = 0
-                self.animate(&self.animations[0])
+                self.animate(&self.animations[0], 12, 10)
             }
         case 1:
             if has_moved {
                 self.active_animation = 3
-                self.animate(&self.animations[3])
+                self.animate(&self.animations[3], 12, 10)
             } else {
                 self.active_animation = 1
-                self.animate(&self.animations[1])
+                self.animate(&self.animations[1], 12, 10)
             }
     }
 
@@ -279,6 +277,8 @@ game_update :: proc(self: ^Game) {
     for i in 0..<len(enemies) {
         enemy := &enemies[i]
         enemy.pathfind(enemy, player^)
+        enemy.animate(&enemy.animations, 12, 25)
+        
         if is_timer_done(enemy.shoot_cooldown, TIME_RATE) {
             // bug, in slowmo, first bullet spawns correct but the next ones spawn immediately next frame
             enemy.shoot(&enemy.shape, rl.Vector2{player.shape.x, player.shape.y}, true, bullets)
@@ -315,7 +315,11 @@ game_draw :: proc(self: ^Game) {
     }
     
     for i in 0..<len(enemies) {
-        rl.DrawRectangleRec(enemies[i].shape, enemies[i].color)
+        rl.DrawTexturePro(enemies[i].animations.texture, rl.Rectangle{0, 0, enemies[i].shape.width/4, enemies[i].shape.height/4}, rl.Rectangle{enemies[i].shape.x, enemies[i].shape.y, enemies[i].shape.width, enemies[i].shape.height}, rl.Vector2{0, 0}, 0, rl.WHITE)
+
+        if DEBUG_MODE {
+            rl.DrawRectangleRec(enemies[i].shape, rl.Color{10, 10, 10, 60})
+        }
     }
 
     for i in 0..<len(bullets) {
